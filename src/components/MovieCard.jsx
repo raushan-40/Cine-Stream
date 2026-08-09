@@ -26,13 +26,14 @@ export const MovieCard = ({ movie }) => {
   };
 
   return (
-    <article className="movie-card" aria-label={title}>
+    <article className="movie-card" aria-label={title || 'Movie card'}>
       <div className="movie-poster-container">
         {!showPlaceholder ? (
           <img
             src={imageUrl}
-            alt={`${title} poster`}
+            alt={title ? `Poster for ${title}` : 'Movie poster'}
             className="movie-poster"
+            loading="lazy"
             onError={() => setImageError(true)}
           />
         ) : (

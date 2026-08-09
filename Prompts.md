@@ -21,24 +21,26 @@ Implemented automatic 500ms debounced movie search without external packages usi
 ---
 
 ## Session 5: Persistent Movie Favorites Implementation
+Implemented `localStorage` persistence, `FavoritesContext` state synchronization across routes, and a dedicated `/favorites` route.
+
+---
+
+## Session 6: Lazy Loading of Movie Poster Images
 
 ### Objective
-Allow users to toggle favorite status on movies, persist favorites in `localStorage`, and display saved favorites on a dedicated `/favorites` route.
+Optimize image loading so poster images load lazily as they approach the user's viewport, reducing initial network bandwidth and improving perceived performance.
 
-### Favorites Architecture
-1. **Isolated Storage Service (`src/services/favoritesStorage.js`)**: Encapsulates `localStorage` reads/writes under key `cine-stream-favorites`. Includes robust validation against malformed JSON or non-array corrupt data.
-2. **React Context (`src/context/FavoritesContext.jsx`)**: Synchronizes favorite state seamlessly across `HomePage`, `FavoritesPage`, `MovieCard`s, and `Navigation`.
-3. **Routing (`react-router-dom`)**: Added `BrowserRouter` routing with routes for `/` (`HomePage`) and `/favorites` (`FavoritesPage`).
+### Approach Selected
+1. **Native `loading="lazy"`**: Used the browser-native `loading="lazy"` attribute on `<img />` tags inside `MovieCard.jsx`.
+2. **Separation of Concerns**: Avoided attaching `IntersectionObserver` to images to keep the existing infinite scroll observer focused exclusively on pagination.
+3. **Zero Cumulative Layout Shift (CLS)**: The CSS rule `.movie-poster-container` enforces `aspect-ratio: 2 / 3` with a background placeholder color, keeping card dimensions fixed before image bytes download.
 
-### Accessibility Considerations
-- Favorite toggle buttons use dynamic `aria-label`s (`Add Spider-Man to favorites` / `Remove Spider-Man from favorites`).
-- Added `aria-pressed` state to indicate active status to screen readers.
-- Keyboard focus rings (`:focus-visible`) and `e.stopPropagation()` prevent unwanted navigation triggers.
+### Accessibility & Fallback Handling
+- **Descriptive Alt Text**: Poster alt text dynamically formats to `Poster for ${title}` (e.g., `Poster for Inception`).
+- **Null & Missing Path**: Movies with `poster_path === null` bypass `<img>` rendering and display an accessible fallback placeholder.
+- **Network Load Failure**: The `onError` handler sets `imageError = true`, smoothly switching to the placeholder without breaking the card layout or favorite controls.
 
 ### Tests Performed
-1. **Add/Remove Favorite**: Clicked heart toggle -> state updated immediately, badge count incremented, and item persisted in `localStorage`.
-2. **Persistence Across Refresh**: Favorited 3 movies and refreshed the browser -> all 3 movies remained active and displayed on `/favorites`.
-3. **Direct Route Access**: Navigated directly to `http://localhost:5173/favorites` -> loaded saved favorites from `localStorage` correctly.
-4. **Empty State**: Removed all favorites -> empty state rendered with "No favorite movies yet."
-5. **Corrupt Storage Recovery**: Inserted invalid JSON string into `cine-stream-favorites` key in DevTools Application tab -> application degraded safely without crashing, treating favorites as `[]`.
-6. **Regression Tests**: Confirmed 500ms debounced search and `IntersectionObserver` infinite scrolling continue working without regression.
+1. **Initial Viewport Load**: Opened Network → Img tab in Chrome DevTools. Verified initial visible posters load cleanly without downloading offscreen images eagerly.
+2. **Infinite Scroll & Search Compatibility**: Scrolled down and searched "Batman" -> newly loaded results lazy-load posters seamlessly as they enter the viewport.
+3. **Favorites Route**: Visited `/favorites` -> verified saved movie cards automatically utilize native lazy loading via the shared `MovieCard` component.
