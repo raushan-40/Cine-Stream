@@ -31,25 +31,32 @@ Implemented native browser `loading="lazy"` attributes on poster images with `as
 ---
 
 ## Session 7: AI Mood Matcher Foundation
+Integrated Google Gemini API (`gemini-1.5-flash`) to process natural-language user moods and return 3-5 movie title recommendations.
+
+---
+
+## Session 8: Gemini → TMDB → MovieCard Integration
 
 ### Objective
-Integrate Google Gemini API (`gemini-1.5-flash`) to process natural-language user moods, validate structured JSON output, and display 3-5 movie title recommendations.
+Connect Gemini's 3-5 recommended movie title strings to real TMDB movie objects, rendering them using the existing `MovieGrid` and `MovieCard` components.
 
-### Architecture & Gemini Service
-1. **Isolated Service (`src/services/geminiService.js`)**: Encapsulates Gemini REST API request construction, response parsing, and error mapping.
-2. **Environment Variable (`VITE_GEMINI_API_KEY`)**: Added to `.env.example`.
-3. **Structured Response Enforcement**: Request sets `responseMimeType: 'application/json'` and validates that the JSON object contains a valid `movies` array of 3-5 non-empty string titles.
-4. **Validation & Normalization**: Strips invalid whitespace and discards non-string or empty titles before state updates.
+### Matching Strategy
+1. Gemini generates 3-5 movie title strings.
+2. `tmdbService.searchMovieByTitle(title)` queries TMDB's `/search/movie` endpoint concurrently (`Promise.all`).
+3. Selection logic prefers exact title matches (case-insensitive) or falls back to top search results.
+4. Missing matches (`null`) are filtered out cleanly without breaking the grid or rendering fake objects.
+5. Unique movies are deduplicated by TMDB `movie.id`.
+6. Matched TMDB objects are passed to `<MovieGrid movies={matchedMovies} />`.
 
-### UI States
-- **Idle**: Renders mood textarea prompt and submit button.
-- **Empty Input**: Displays inline validation warning without sending network requests.
-- **Loading**: Disables submit button and renders localized `LoadingState`.
-- **Success**: Displays returned 3-5 movie title recommendations as a numbered list.
-- **Error**: Displays localized `ErrorState` with retry option.
+### Integration & Reuse
+- **Favorites Integration**: AI-recommended movie cards automatically inherit the favorite heart toggle button and update `localStorage` / `/favorites` route state.
+- **Lazy Image Loading**: AI-recommended movie cards automatically retain `loading="lazy"`, image error fallbacks, and `aspect-ratio: 2 / 3` styling.
+- **No Infinite Scroll for AI Results**: AI results render as a finite, curated recommendation set without pagination loops.
 
 ### Tests Performed
-1. **Basic Mood Test**: Submitted "dark psychological thriller" -> Gemini returned 3-5 valid movie titles.
-2. **Empty Input**: Clicked submit with empty textarea -> inline validation error appeared without triggering API calls.
-3. **Loading & Duplicate Guard**: Clicked submit -> button disabled during in-flight fetch to prevent duplicate requests.
-4. **Error Recovery**: Tested with missing API key -> user-friendly error state displayed with retry option.
+1. **Basic Mood Search**: Submitted "dark psychological thriller" -> Gemini generated titles -> TMDB fetched real movie objects -> displayed `MovieCard` grid.
+2. **TMDB Source of Truth**: Verified poster URLs, release dates, ratings, and IDs originate directly from TMDB data.
+3. **Favorites Integration**: Favorited an AI-recommended movie -> verified item appeared on `/favorites` and persisted across browser refresh.
+4. **Missing Matches**: Tested with obscure title string -> null match filtered out safely while remaining titles rendered.
+5. **No Matches Empty State**: Verified "We couldn't find matching TMDB movies..." empty state renders if 0 titles match.
+6. **Regression Tests**: Confirmed Popular Movies, 500ms Debounced Search, Infinite Scroll, and Favorites operate without regressions.

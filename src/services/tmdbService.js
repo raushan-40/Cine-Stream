@@ -66,6 +66,33 @@ export const tmdbService = {
     return request('/search/movie', { query: query.trim(), page }, options);
   },
 
+  /**
+   * Searches TMDB for a single title string and returns the best matching real TMDB movie object.
+   * Prefers exact title match (case-insensitive) or falls back to the top search result.
+   */
+  searchMovieByTitle: async (title, options = {}) => {
+    if (!title || !title.trim()) return null;
+
+    try {
+      const data = await request('/search/movie', { query: title.trim(), page: 1 }, options);
+      const results = data.results || [];
+      if (results.length === 0) return null;
+
+      const normalizedTitle = title.trim().toLowerCase();
+
+      // Find best exact title match or fallback to top TMDB result
+      const exactMatch = results.find(
+        (movie) => movie.title && movie.title.toLowerCase() === normalizedTitle
+      );
+
+      return exactMatch || results[0];
+    } catch (err) {
+      if (err.name === 'AbortError') throw err;
+      // Return null for individual title search failures so remaining matches can succeed
+      return null;
+    }
+  },
+
   getImageUrl: (path) => {
     return path ? `${IMAGE_BASE_URL}${path}` : null;
   },

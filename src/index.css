@@ -410,8 +410,13 @@ body {
 
 /* AI Mood Matcher Styles */
 .mood-matcher-container {
-  max-width: 720px;
+  max-width: var(--container-max-width);
   margin: 0 auto;
+}
+
+.mood-form-card {
+  max-width: 720px;
+  margin: 0 auto 2rem auto;
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -500,61 +505,6 @@ body {
   margin-top: 2.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--border-color);
-}
-
-.mood-results-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin-bottom: 0.25rem;
-}
-
-.mood-results-subtitle {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  margin-bottom: 1.25rem;
-}
-
-.mood-titles-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.mood-title-card {
-  background-color: var(--bg-input);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  padding: 0.85rem 1.25rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  transition: var(--transition);
-}
-
-.mood-title-card:hover {
-  border-color: var(--accent-color);
-  transform: translateX(4px);
-}
-
-.mood-title-number {
-  background-color: var(--accent-color);
-  color: #ffffff;
-  font-weight: 800;
-  font-size: 0.85rem;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.mood-title-text {
-  font-weight: 600;
-  font-size: 1.05rem;
-  color: var(--text-primary);
 }
 
 /* Load More & Pagination */
