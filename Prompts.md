@@ -1,37 +1,29 @@
-# Phase 1 Documentation — Cine-Stream
+# Documentation — Cine-Stream
 
-## Session Objective
-Establish Phase 1 base architecture, component structure, environment variable configuration, and TMDB REST API integration for popular movies and explicit submission search.
+## Session 1: Phase 1 Foundation
+Established React/Vite foundation, TMDB API service (`tmdbService.js`), popular movies, search submission, movie cards, and state handling.
 
-## AI Assistance Used
-- Senior React Frontend Engineer Pair Programmer
+---
 
-## Key Architectural Decisions
-1. **Centralized Service Isolation**: API request logic and URL construction are isolated in `src/services/tmdbService.js` and kept out of React UI components.
-2. **Explicit Search Submit**: Search is strictly triggered on form submit or reset; continuous search on keystroke and debouncing are reserved for future phases.
-3. **Graceful Poster & Data Handling**: Image fallbacks and optional property fallbacks (`poster_path`, `release_date`, `vote_average`) ensure UI stability without broken image icons or JS crashes.
-4. **Clean Component Architecture**: Dedicated single-responsibility components for `MovieCard`, `MovieGrid`, `SearchBar`, `LoadingState`, `ErrorState`, and `EmptyState`.
+## Session 2: Infinite Scroll Implementation
+Implemented infinite scroll using native `IntersectionObserver` with deduplication and separate Page 1 vs Page 2+ UI states.
 
-## Files Changed/Created
-- `.env.example`
-- `.gitignore`
-- `src/services/tmdbService.js`
-- `src/components/SearchBar.jsx`
-- `src/components/MovieCard.jsx`
-- `src/components/MovieGrid.jsx`
-- `src/components/LoadingState.jsx`
-- `src/components/ErrorState.jsx`
-- `src/components/EmptyState.jsx`
-- `src/pages/HomePage.jsx`
-- `src/App.jsx`
-- `src/main.jsx`
-- `src/index.css`
-- `Prompts.md`
+---
 
-## Tests & QA Verification
-1. **Popular Movies Request**: Verified page load triggers initial popular movies fetch (`/movie/popular`).
-2. **Search Submission**: Verified submitting search form requests `/search/movie` and replaces grid items.
-3. **Empty State**: Verified query with 0 results renders clear `EmptyState` component.
-4. **Missing Poster Test**: Tested items without `poster_path` render graceful fallback placeholder with icon.
-5. **Error Handling**: Verified invalid key / network failure triggers user-friendly `ErrorState` with retry option.
-6. **Responsive Layout**: Validated CSS Grid breakpoints at 320px, 375px, 425px, 768px, and 1024px+.
+## Session 3: Debugging Duplicate Page 1 API Requests
+
+### Root Cause Analysis
+1. **React 18 StrictMode Re-execution**: React 18 in development mode intentionally mounts, unmounts, and re-mounts components synchronously to verify effect cleanups. Without an `AbortController` signal passed to native `fetch()`, the first mount's network request ran to completion alongside the second mount's network request, creating duplicate `/movie/popular?page=1` requests in DevTools.
+2. **Sentinel Observer Guards**: Ensure `IntersectionObserver` does not trigger when `isLoadingInitial` is `true` or when `movies.length === 0`.
+
+### Fix Applied
+1. Updated `tmdbService.js` (`request`, `getPopularMovies`, `searchMovies`) to accept an options object containing an `AbortSignal`.
+2. Created an `AbortController` inside `HomePage.jsx`'s initial `useEffect` hook. When React StrictMode unmounts during dev verification, `controller.abort()` cancels the obsolete in-flight HTTP request.
+3. Handled `AbortError` gracefully in `fetchInitialMovies` to prevent unhandled promise rejections.
+4. Strengthened `IntersectionObserver` callback guards in `HomePage.jsx` so it strictly activates only when `!isLoadingInitial`, `movies.length > 0`, and `!isLoadingRef.current`.
+
+### Tests & QA Verification
+- **DevTools Network Verification**: Refreshed home page in development mode. Verified exactly 1 completed `/movie/popular?page=1` request.
+- **Scroll Verification**: Scrolled down to trigger `/movie/popular?page=2` and `/movie/popular?page=3` sequentially without duplicate requests.
+- **Search Verification**: Searched "Batman" and verified a single `/search/movie?query=batman&page=1` request.
+- **Build Verification**: Executed `npm run build` successfully without errors.

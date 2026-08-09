@@ -3,15 +3,11 @@ const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 
 const apiKey = import.meta.env.VITE_TMDB_KEY;
 
-/**
- * Validates API configuration and returns headers/params config.
- */
 const getFetchConfig = () => {
   if (!apiKey) {
     throw new Error('TMDB API Key is missing. Please set VITE_TMDB_KEY in your .env file.');
   }
 
-  // Support TMDB v4 Read Access Bearer Tokens as well as v3 API key strings
   const isBearer = apiKey.startsWith('eyJ') || apiKey.length > 32;
 
   const headers = {
@@ -25,10 +21,7 @@ const getFetchConfig = () => {
   return { isBearer, headers };
 };
 
-/**
- * Generic fetch wrapper for TMDB endpoints.
- */
-const request = async (endpoint, params = {}) => {
+const request = async (endpoint, params = {}, options = {}) => {
   const { isBearer, headers } = getFetchConfig();
 
   const url = new URL(`${BASE_URL}${endpoint}`);
@@ -43,7 +36,10 @@ const request = async (endpoint, params = {}) => {
     }
   });
 
-  const response = await fetch(url.toString(), { headers });
+  const response = await fetch(url.toString(), {
+    headers,
+    signal: options.signal,
+  });
 
   if (!response.ok) {
     if (response.status === 401) {
@@ -59,15 +55,15 @@ const request = async (endpoint, params = {}) => {
 };
 
 export const tmdbService = {
-  getPopularMovies: async (page = 1) => {
-    return request('/movie/popular', { page });
+  getPopularMovies: async (page = 1, options = {}) => {
+    return request('/movie/popular', { page }, options);
   },
 
-  searchMovies: async (query, page = 1) => {
+  searchMovies: async (query, page = 1, options = {}) => {
     if (!query || !query.trim()) {
-      return tmdbService.getPopularMovies(page);
+      return tmdbService.getPopularMovies(page, options);
     }
-    return request('/search/movie', { query: query.trim(), page });
+    return request('/search/movie', { query: query.trim(), page }, options);
   },
 
   getImageUrl: (path) => {
