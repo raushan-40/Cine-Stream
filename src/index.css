@@ -42,11 +42,11 @@ body {
   border: 0;
 }
 
-/* Header & Brand */
+/* Header & Navigation */
 .app-header {
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
-  padding: 1.25rem 1.5rem;
+  padding: 1rem 1.5rem;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -60,12 +60,16 @@ body {
   gap: 1rem;
 }
 
-@media (min-width: 640px) {
-  .header-content {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.brand-link {
+  text-decoration: none;
+  color: inherit;
 }
 
 .brand-title {
@@ -82,6 +86,49 @@ body {
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-top: 0.25rem;
+}
+
+.app-nav {
+  display: flex;
+  align-items: center;
+}
+
+.nav-list {
+  display: flex;
+  list-style: none;
+  gap: 1rem;
+}
+
+.nav-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.nav-link:hover {
+  color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.nav-link.active {
+  color: var(--text-primary);
+  background-color: var(--accent-color);
+}
+
+.nav-badge {
+  background-color: rgba(255, 255, 255, 0.25);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 12px;
+  font-weight: 700;
 }
 
 /* Search Bar */
@@ -146,7 +193,7 @@ body {
   background-color: var(--accent-hover);
 }
 
-/* Main Content Layout */
+/* Main Content */
 .main-content {
   max-width: var(--container-max-width);
   margin: 0 auto;
@@ -176,7 +223,7 @@ body {
   }
 }
 
-/* Movie Card */
+/* Movie Card & Favorite Button */
 .movie-card {
   background-color: var(--bg-card);
   border-radius: var(--radius-md);
@@ -227,6 +274,44 @@ body {
 
 .placeholder-text {
   font-size: 0.8rem;
+}
+
+/* Favorite Heart Toggle Button */
+.favorite-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: var(--transition);
+  z-index: 10;
+}
+
+.favorite-button:hover {
+  transform: scale(1.1);
+  background: rgba(0, 0, 0, 0.85);
+  border-color: var(--accent-color);
+}
+
+.favorite-button:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.favorite-button.active {
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+  background: rgba(0, 0, 0, 0.85);
 }
 
 .movie-info {
@@ -309,7 +394,9 @@ body {
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-weight: 500;
+  text-decoration: none;
   transition: var(--transition);
+  display: inline-block;
 }
 
 .retry-button:hover, .reset-button:hover {
@@ -317,7 +404,7 @@ body {
   border-color: #666;
 }
 
-/* Load More & Pagination Styles */
+/* Load More & Pagination */
 .load-more-container {
   display: flex;
   flex-direction: column;

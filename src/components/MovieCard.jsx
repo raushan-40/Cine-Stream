@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { tmdbService } from '../services/tmdbService';
+import { useFavorites } from '../context/FavoritesContext';
 
 export const MovieCard = ({ movie }) => {
-  const { title, poster_path, release_date, vote_average } = movie;
+  const { title, poster_path, release_date, vote_average, id } = movie;
+  const { isFavorite, toggleFavorite } = useFavorites();
   const [imageError, setImageError] = useState(false);
 
+  const isFav = isFavorite(id);
   const imageUrl = tmdbService.getImageUrl(poster_path);
   const releaseYear = release_date && release_date.length >= 4 
     ? release_date.substring(0, 4) 
@@ -15,6 +18,12 @@ export const MovieCard = ({ movie }) => {
     : 'N/A';
 
   const showPlaceholder = !imageUrl || imageError;
+
+  const handleFavoriteClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    toggleFavorite(movie);
+  };
 
   return (
     <article className="movie-card" aria-label={title}>
@@ -32,6 +41,16 @@ export const MovieCard = ({ movie }) => {
             <span className="placeholder-text">No Poster Available</span>
           </div>
         )}
+
+        <button
+          type="button"
+          onClick={handleFavoriteClick}
+          className={`favorite-button ${isFav ? 'active' : ''}`}
+          aria-label={isFav ? `Remove ${title || 'movie'} from favorites` : `Add ${title || 'movie'} to favorites`}
+          aria-pressed={isFav}
+        >
+          <span aria-hidden="true">{isFav ? '♥' : '♡'}</span>
+        </button>
       </div>
 
       <div className="movie-info">

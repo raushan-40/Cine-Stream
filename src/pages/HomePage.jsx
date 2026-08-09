@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { tmdbService } from '../services/tmdbService';
 import { SearchBar } from '../components/SearchBar';
 import { MovieGrid } from '../components/MovieGrid';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { EmptyState } from '../components/EmptyState';
+import { Navigation } from '../components/Navigation';
 
 export const HomePage = () => {
   const [movies, setMovies] = useState([]);
@@ -20,16 +22,12 @@ export const HomePage = () => {
   const [errorInitial, setErrorInitial] = useState(null);
   const [errorMore, setErrorMore] = useState(null);
 
-  // Refs for tracking request lifecycle & cancellation
+  // Refs for request lifecycle & cancellation
   const sentinelRef = useRef(null);
   const isLoadingRef = useRef(false);
   const requestIdRef = useRef(0);
   const activeControllerRef = useRef(null);
 
-  /**
-   * Fetches Page 1 for initial load or new debounced search.
-   * Accepts AbortSignal to cancel stale or unmounted requests.
-   */
   const fetchInitialMovies = useCallback(async (query, signal) => {
     const currentRequestId = ++requestIdRef.current;
     setIsLoadingInitial(true);
@@ -45,7 +43,6 @@ export const HomePage = () => {
         data = await tmdbService.getPopularMovies(1, { signal });
       }
 
-      // Ignore response if a newer search/request was triggered
       if (currentRequestId !== requestIdRef.current) return;
 
       const results = data.results || [];
@@ -53,10 +50,7 @@ export const HomePage = () => {
       setPage(1);
       setHasMore(1 < data.total_pages);
     } catch (err) {
-      if (err.name === 'AbortError') {
-        // Silently ignore aborted requests
-        return;
-      }
+      if (err.name === 'AbortError') return;
       if (currentRequestId !== requestIdRef.current) return;
       
       setErrorInitial(
@@ -71,9 +65,6 @@ export const HomePage = () => {
     }
   }, []);
 
-  /**
-   * Fetches Page 2+ for infinite scroll.
-   */
   const fetchNextPage = useCallback(async () => {
     if (isLoadingRef.current || !hasMore || errorMore) return;
 
@@ -96,7 +87,6 @@ export const HomePage = () => {
       const newMovies = data.results || [];
 
       setMovies((prevMovies) => {
-        // Deduplicate movies by unique TMDB ID
         const existingIds = new Set(prevMovies.map((m) => m.id));
         const uniqueNewMovies = newMovies.filter((m) => !existingIds.has(m.id));
         return [...prevMovies, ...uniqueNewMovies];
@@ -116,7 +106,6 @@ export const HomePage = () => {
     }
   }, [page, hasMore, searchQuery, errorMore]);
 
-  // Initial load on mount with AbortController cleanup
   useEffect(() => {
     const controller = new AbortController();
     activeControllerRef.current = controller;
@@ -127,7 +116,6 @@ export const HomePage = () => {
     };
   }, [fetchInitialMovies]);
 
-  // Set up IntersectionObserver for infinite scroll sentinel
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -161,9 +149,7 @@ export const HomePage = () => {
     };
   }, [hasMore, fetchNextPage, errorMore, isLoadingInitial, movies.length]);
 
-  // Handle debounced search query changes
   const handleSearch = useCallback((query) => {
-    // Abort previous pending initial search request if still in flight
     if (activeControllerRef.current) {
       activeControllerRef.current.abort();
     }
@@ -175,12 +161,10 @@ export const HomePage = () => {
     fetchInitialMovies(query, controller.signal);
   }, [fetchInitialMovies]);
 
-  // Handle clearing search query
   const handleResetSearch = () => {
     handleSearch('');
   };
 
-  // Handle retry for next page failure
   const handleRetryNextPage = () => {
     setErrorMore(null);
     setTimeout(() => {
@@ -192,9 +176,14 @@ export const HomePage = () => {
     <div className="home-page">
       <header className="app-header">
         <div className="header-content">
-          <div className="brand">
-            <h1 className="brand-title">Cine-Stream</h1>
-            <p className="brand-subtitle">Media Explorer</p>
+          <div className="header-top">
+            <Link to="/" className="brand-link">
+              <div className="brand">
+                <h1 className="brand-title">Cine-Stream</h1>
+                <p className="brand-subtitle">Media Explorer</p>
+              </div>
+            </Link>
+            <Navigation />
           </div>
           <SearchBar onSearch={handleSearch} initialQuery={searchQuery} />
         </div>
@@ -207,17 +196,14 @@ export const HomePage = () => {
           </h2>
         </section>
 
-        {/* Page 1 Initial Loading State */}
         {isLoadingInitial && (
           <LoadingState message={searchQuery ? 'Searching movies...' : 'Loading popular movies...'} />
         )}
 
-        {/* Page 1 Initial Error State */}
         {!isLoadingInitial && errorInitial && (
           <ErrorState message={errorInitial} onRetry={() => handleSearch(searchQuery)} />
         )}
 
-        {/* Empty State */}
         {!isLoadingInitial && !errorInitial && movies.length === 0 && (
           <EmptyState
             message={searchQuery ? `No movies found matching "${searchQuery}".` : 'No movies available.'}
@@ -225,12 +211,10 @@ export const HomePage = () => {
           />
         )}
 
-        {/* Movie Grid & Infinite Scroll UI */}
         {!isLoadingInitial && !errorInitial && movies.length > 0 && (
           <>
             <MovieGrid movies={movies} />
 
-            {/* Page 2+ Loading Indicator */}
             {isLoadingMore && (
               <div className="load-more-container" role="status" aria-live="polite">
                 <div className="loading-spinner small" aria-hidden="true" />
@@ -238,7 +222,6 @@ export const HomePage = () => {
               </div>
             )}
 
-            {/* Page 2+ Error State */}
             {errorMore && (
               <div className="load-more-container error-more" role="alert">
                 <p className="load-more-error-text">{errorMore}</p>
@@ -248,14 +231,12 @@ export const HomePage = () => {
               </div>
             )}
 
-            {/* End of Pages Indicator */}
             {!hasMore && (
               <div className="end-of-results">
                 <p>You've reached the end of the list.</p>
               </div>
             )}
 
-            {/* Bottom Sentinel Element */}
             <div ref={sentinelRef} className="sentinel" aria-hidden="true" />
           </>
         )}
