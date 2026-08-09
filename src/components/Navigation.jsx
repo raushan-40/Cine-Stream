@@ -26,6 +26,14 @@ export const Navigation = () => {
             Favorites {count > 0 && <span className="nav-badge">{count}</span>}
           </NavLink>
         </li>
+        <li>
+          <NavLink
+            to="/mood"
+            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+          >
+            AI Mood Matcher
+          </NavLink>
+        </li>
       </ul>
     </nav>
   );
