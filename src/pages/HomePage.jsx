@@ -20,14 +20,15 @@ export const HomePage = () => {
   const [errorInitial, setErrorInitial] = useState(null);
   const [errorMore, setErrorMore] = useState(null);
 
-  // Refs for request lifecycle & duplicate guards
+  // Refs for tracking request lifecycle & cancellation
   const sentinelRef = useRef(null);
   const isLoadingRef = useRef(false);
   const requestIdRef = useRef(0);
+  const activeControllerRef = useRef(null);
 
   /**
-   * Fetches movies for page 1 (initial load or new search).
-   * Supports AbortSignal for cleanup on unmount or query switch.
+   * Fetches Page 1 for initial load or new debounced search.
+   * Accepts AbortSignal to cancel stale or unmounted requests.
    */
   const fetchInitialMovies = useCallback(async (query, signal) => {
     const currentRequestId = ++requestIdRef.current;
@@ -53,7 +54,7 @@ export const HomePage = () => {
       setHasMore(1 < data.total_pages);
     } catch (err) {
       if (err.name === 'AbortError') {
-        // Silently ignore aborted requests from React StrictMode remounts
+        // Silently ignore aborted requests
         return;
       }
       if (currentRequestId !== requestIdRef.current) return;
@@ -71,7 +72,7 @@ export const HomePage = () => {
   }, []);
 
   /**
-   * Fetches the next page of movies (Page 2+).
+   * Fetches Page 2+ for infinite scroll.
    */
   const fetchNextPage = useCallback(async () => {
     if (isLoadingRef.current || !hasMore || errorMore) return;
@@ -95,6 +96,7 @@ export const HomePage = () => {
       const newMovies = data.results || [];
 
       setMovies((prevMovies) => {
+        // Deduplicate movies by unique TMDB ID
         const existingIds = new Set(prevMovies.map((m) => m.id));
         const uniqueNewMovies = newMovies.filter((m) => !existingIds.has(m.id));
         return [...prevMovies, ...uniqueNewMovies];
@@ -117,6 +119,7 @@ export const HomePage = () => {
   // Initial load on mount with AbortController cleanup
   useEffect(() => {
     const controller = new AbortController();
+    activeControllerRef.current = controller;
     fetchInitialMovies('', controller.signal);
 
     return () => {
@@ -124,7 +127,7 @@ export const HomePage = () => {
     };
   }, [fetchInitialMovies]);
 
-  // Set up IntersectionObserver for sentinel observation
+  // Set up IntersectionObserver for infinite scroll sentinel
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -132,7 +135,6 @@ export const HomePage = () => {
     const observer = new IntersectionObserver(
       (entries) => {
         const target = entries[0];
-        // Ensure sentinel only triggers when initial load is complete and movies are displayed
         if (
           target.isIntersecting &&
           hasMore &&
@@ -159,16 +161,23 @@ export const HomePage = () => {
     };
   }, [hasMore, fetchNextPage, errorMore, isLoadingInitial, movies.length]);
 
-  // Handle explicit search submission
-  const handleSearch = (query) => {
+  // Handle debounced search query changes
+  const handleSearch = useCallback((query) => {
+    // Abort previous pending initial search request if still in flight
+    if (activeControllerRef.current) {
+      activeControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    activeControllerRef.current = controller;
+
     setSearchQuery(query);
-    fetchInitialMovies(query);
-  };
+    fetchInitialMovies(query, controller.signal);
+  }, [fetchInitialMovies]);
 
   // Handle clearing search query
   const handleResetSearch = () => {
-    setSearchQuery('');
-    fetchInitialMovies('');
+    handleSearch('');
   };
 
   // Handle retry for next page failure
@@ -205,7 +214,7 @@ export const HomePage = () => {
 
         {/* Page 1 Initial Error State */}
         {!isLoadingInitial && errorInitial && (
-          <ErrorState message={errorInitial} onRetry={() => fetchInitialMovies(searchQuery)} />
+          <ErrorState message={errorInitial} onRetry={() => handleSearch(searchQuery)} />
         )}
 
         {/* Empty State */}

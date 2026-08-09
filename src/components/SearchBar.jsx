@@ -1,15 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export const SearchBar = ({ onSearch, initialQuery = '' }) => {
-  const [query, setQuery] = useState(initialQuery);
+  const [searchTerm, setSearchTerm] = useState(initialQuery);
+  const isFirstRender = useRef(true);
+
+  // Debounce effect: dispatches onSearch 500ms after user stops typing
+  useEffect(() => {
+    // Skip initial mount so popular movies load uninterrupted on page load
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      onSearch(searchTerm);
+    }, 500);
+
+    // Cleanup timer on every keystroke or component unmount
+    return () => clearTimeout(timer);
+  }, [searchTerm, onSearch]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSearch(query);
+    // Immediate execution on explicit form submission
+    onSearch(searchTerm);
   };
 
   const handleClear = () => {
-    setQuery('');
+    setSearchTerm('');
+    // Immediate execution on clearing search input
     onSearch('');
   };
 
@@ -22,13 +41,13 @@ export const SearchBar = ({ onSearch, initialQuery = '' }) => {
         <input
           id="movie-search"
           type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search for movies..."
           aria-label="Search movies"
           className="search-input"
         />
-        {query && (
+        {searchTerm && (
           <button
             type="button"
             onClick={handleClear}
