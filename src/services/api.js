@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://the-data-hub-1-owrx.onrender.com';
 
 // GET all posts
 export const getPosts = async () => {
