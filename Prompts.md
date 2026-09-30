@@ -60,3 +60,31 @@ Connect Gemini's 3-5 recommended movie title strings to real TMDB movie objects,
 4. **Missing Matches**: Tested with obscure title string -> null match filtered out safely while remaining titles rendered.
 5. **No Matches Empty State**: Verified "We couldn't find matching TMDB movies..." empty state renders if 0 titles match.
 6. **Regression Tests**: Confirmed Popular Movies, 500ms Debounced Search, Infinite Scroll, and Favorites operate without regressions.
+
+
+___________________________________________________
+# Sprint 11 — The Professional Standard
+
+## Track B — Fullstack Integration
+
+## Phase 1 — Network Connection & CORS
+
+### Objective
+Integrate the Sprint 8 React (Vite) frontend with the Sprint 10 Node/Express/MongoDB backend, configuring CORS on Express and replacing dummy data with live `GET /posts` data fetching via React's `useEffect`.
+
+### Architecture & Implementation
+- **Environment Strategy**: Created `.env` and `.env.example` in frontend declaring `VITE_API_URL=http://localhost:5000`.
+- **API Service Layer**: Created `src/services/api.js` exporting `getPosts()` fetching from `${VITE_API_URL}/posts`.
+- **Component State**: Implemented `posts`, `loading`, and `error` state handling inside `useEffect`.
+- **Backend CORS**: Installed `cors` and registered middleware in `server.js` allowing origin `http://localhost:5173`.
+
+### Testing & Verification
+- Started backend on `http://localhost:5000` and frontend on `http://localhost:5173`.
+- Verified Network tab: Request to `GET http://localhost:5000/posts` returned `200 OK` with JSON array.
+- Tested Loading state: Displays `"Loading posts..."` during network latency.
+- Tested Empty state: When MongoDB collection has no documents, displays `"No posts available."`.
+- Tested Error state: When backend is stopped, displays `"Unable to load posts. Please try again."`.
+- Confirmed zero CORS errors or unhandled promise rejections in browser console.
+
+### Debugging
+Verified that `cors` middleware is placed before all route declarations in `server.js` so preflight and standard requests receive the appropriate headers.
