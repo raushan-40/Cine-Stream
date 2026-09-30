@@ -9,14 +9,13 @@ export const getPosts = async () => {
   return await response.json();
 };
 
-// POST a new post
-export const createPost = async (postData) => {
+// POST a new post using FormData (supports title, content, and optional image)
+export const createPost = async (formData) => {
   const response = await fetch(`${API_BASE_URL}/posts`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(postData)
+    // IMPORTANT: Do NOT set Content-Type header manually here.
+    // The browser automatically sets Content-Type to multipart/form-data with the correct boundary.
+    body: formData
   });
 
   if (!response.ok) {

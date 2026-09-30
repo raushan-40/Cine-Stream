@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getPosts, createPost, deletePost } from './services/api';
 
 function App() {
@@ -10,12 +10,16 @@ function App() {
   // Create form state
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [image, setImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
 
   // Delete action state
   const [deletingId, setDeletingId] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
+
+  // Ref to reset the file input element
+  const fileInputRef = useRef(null);
 
   // 1. Initial data fetch
   useEffect(() => {
@@ -47,11 +51,37 @@ function App() {
     };
   }, []);
 
-  // 2. Handle post creation
+  // 2. Handle image file selection with validation
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) {
+      setImage(null);
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setFormError('Please select a valid image file (JPEG, PNG, WEBP, etc.).');
+      setImage(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const maxSize = 5 * 1024 * 1024; // 5MB limit
+    if (file.size > maxSize) {
+      setFormError('Image size must be less than 5 MB.');
+      setImage(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setFormError(null);
+    setImage(file);
+  };
+
+  // 3. Handle post creation
   const handleCreatePost = async (e) => {
     e.preventDefault();
 
-    // Client-side validation
     if (!title.trim() || !content.trim()) {
       setFormError('Title and content are required.');
       return;
@@ -61,17 +91,26 @@ function App() {
       setIsSubmitting(true);
       setFormError(null);
 
-      const newPost = await createPost({
-        title: title.trim(),
-        content: content.trim()
-      });
+      const formData = new FormData();
+      formData.append('title', title.trim());
+      formData.append('content', content.trim());
 
-      // Optimistically prepend the returned post to local state
+      if (image) {
+        formData.append('image', image);
+      }
+
+      const newPost = await createPost(formData);
+
+      // Prepend to posts list
       setPosts((prevPosts) => [newPost, ...prevPosts]);
 
-      // Reset form
+      // Reset form fields
       setTitle('');
       setContent('');
+      setImage(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch (err) {
       setFormError(err.message || 'Unable to create post. Please try again.');
     } finally {
@@ -79,7 +118,7 @@ function App() {
     }
   };
 
-  // 3. Handle post deletion
+  // 4. Handle post deletion
   const handleDeletePost = async (id) => {
     const confirmed = window.confirm('Are you sure you want to delete this post?');
     if (!confirmed) return;
@@ -90,7 +129,6 @@ function App() {
 
       await deletePost(id);
 
-      // Remove from state immediately
       setPosts((prevPosts) => prevPosts.filter((post) => post._id !== id));
     } catch (err) {
       setDeleteError(`Failed to delete post: ${err.message || 'Please try again.'}`);
@@ -100,24 +138,35 @@ function App() {
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem', fontFamily: 'sans-serif' }}>
-      <header style={{ marginBottom: '2rem', borderBottom: '1px solid #ddd', paddingBottom: '1rem' }}>
-        <h1>The Data Hub — Fullstack Blog</h1>
+    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '2.5rem 1.5rem', fontFamily: 'system-ui, -apple-system, sans-serif', color: '#f3f4f6' }}>
+      
+      {/* HEADER */}
+      <header style={{ marginBottom: '2.5rem', borderBottom: '1px solid #333', paddingBottom: '1.25rem' }}>
+        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: '700', color: '#ffffff', letterSpacing: '-0.5px' }}>
+          The Data Hub <span style={{ fontSize: '1.2rem', color: '#60a5fa', fontWeight: '400' }}>— Fullstack Blog</span>
+        </h1>
       </header>
 
       {/* CREATE POST FORM */}
-      <section style={{ backgroundColor: '#f9f9f9', padding: '1.5rem', borderRadius: '8px', marginBottom: '2.5rem' }}>
-        <h2>Create New Post</h2>
+      <section style={{
+        backgroundColor: '#1e1e1e',
+        border: '1px solid #2e2e2e',
+        padding: '1.75rem',
+        borderRadius: '12px',
+        marginBottom: '3rem',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+      }}>
+        <h2 style={{ margin: '0 0 1.25rem 0', fontSize: '1.3rem', color: '#ffffff' }}>Create New Post</h2>
 
         {formError && (
-          <div style={{ color: '#d32f2f', backgroundColor: '#ffebee', padding: '0.75rem', borderRadius: '4px', marginBottom: '1rem' }}>
+          <div style={{ color: '#fca5a5', backgroundColor: '#450a0a', border: '1px solid #7f1d1d', padding: '0.75rem 1rem', borderRadius: '6px', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
             {formError}
           </div>
         )}
 
         <form onSubmit={handleCreatePost}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="title" style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label htmlFor="title" style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#d1d5db', fontSize: '0.95rem' }}>
               Title
             </label>
             <input
@@ -127,12 +176,22 @@ function App() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter post title..."
               disabled={isSubmitting}
-              style={{ width: '100%', padding: '0.6rem', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                boxSizing: 'border-box',
+                borderRadius: '6px',
+                border: '1px solid #3e3e3e',
+                backgroundColor: '#2a2a2a',
+                color: '#ffffff',
+                fontSize: '1rem',
+                outline: 'none'
+              }}
             />
           </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="content" style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label htmlFor="content" style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#d1d5db', fontSize: '0.95rem' }}>
               Content
             </label>
             <textarea
@@ -142,81 +201,139 @@ function App() {
               onChange={(e) => setContent(e.target.value)}
               placeholder="Write post content here..."
               disabled={isSubmitting}
-              style={{ width: '100%', padding: '0.6rem', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                boxSizing: 'border-box',
+                borderRadius: '6px',
+                border: '1px solid #3e3e3e',
+                backgroundColor: '#2a2a2a',
+                color: '#ffffff',
+                fontSize: '1rem',
+                lineHeight: '1.5',
+                outline: 'none',
+                resize: 'vertical'
+              }}
             />
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label htmlFor="image" style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#d1d5db', fontSize: '0.95rem' }}>
+              Post Image (Optional)
+            </label>
+            <input
+              id="image"
+              type="file"
+              accept="image/*"
+              ref={fileInputRef}
+              onChange={handleImageChange}
+              disabled={isSubmitting}
+              style={{ display: 'block', color: '#9ca3af', fontSize: '0.9rem' }}
+            />
+            {image && (
+              <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: '#60a5fa' }}>
+                Selected: <strong>{image.name}</strong> ({(image.size / 1024).toFixed(1)} KB)
+              </p>
+            )}
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting}
             style={{
-              padding: '0.7rem 1.5rem',
-              backgroundColor: isSubmitting ? '#9e9e9e' : '#1976d2',
-              color: '#fff',
+              padding: '0.75rem 1.75rem',
+              backgroundColor: isSubmitting ? '#4b5563' : '#2563eb',
+              color: '#ffffff',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: '6px',
               cursor: isSubmitting ? 'not-allowed' : 'pointer',
-              fontWeight: 'bold'
+              fontWeight: '600',
+              fontSize: '0.95rem',
+              transition: 'background-color 0.2s ease'
             }}
           >
-            {isSubmitting ? 'Creating...' : 'Create Post'}
+            {isSubmitting ? 'Uploading & Creating...' : 'Create Post'}
           </button>
         </form>
       </section>
 
-      {/* POST LIST SECTION */}
+      {/* ALL POSTS LIST */}
       <section>
-        <h2>All Posts</h2>
+        <h2 style={{ margin: '0 0 1.5rem 0', fontSize: '1.5rem', color: '#ffffff' }}>All Posts</h2>
 
         {deleteError && (
-          <div style={{ color: '#d32f2f', backgroundColor: '#ffebee', padding: '0.75rem', borderRadius: '4px', marginBottom: '1rem' }}>
+          <div style={{ color: '#fca5a5', backgroundColor: '#450a0a', border: '1px solid #7f1d1d', padding: '0.75rem 1rem', borderRadius: '6px', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
             {deleteError}
           </div>
         )}
 
-        {loading && <p>Loading posts...</p>}
+        {loading && <p style={{ color: '#9ca3af' }}>Loading posts...</p>}
 
-        {error && <p style={{ color: '#d32f2f' }}>{error}</p>}
+        {error && <p style={{ color: '#f87171' }}>{error}</p>}
 
-        {!loading && !error && posts.length === 0 && <p>No posts available.</p>}
+        {!loading && !error && posts.length === 0 && (
+          <p style={{ color: '#9ca3af', fontStyle: 'italic' }}>No posts available.</p>
+        )}
 
         {!loading && !error && posts.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
             {posts.map((post) => (
               <article
                 key={post._id}
                 style={{
-                  border: '1px solid #e0e0e0',
-                  padding: '1.25rem',
-                  borderRadius: '6px',
-                  backgroundColor: '#ffffff',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                  border: '1px solid #2e2e2e',
+                  padding: '1.5rem',
+                  borderRadius: '12px',
+                  backgroundColor: '#1e1e1e',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <h3 style={{ margin: '0 0 0.5rem 0' }}>{post.title}</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.35rem', color: '#ffffff', fontWeight: '600' }}>
+                    {post.title}
+                  </h3>
                   <button
                     onClick={() => handleDeletePost(post._id)}
                     disabled={deletingId === post._id}
                     style={{
-                      backgroundColor: deletingId === post._id ? '#ccc' : '#e53935',
-                      color: '#fff',
+                      backgroundColor: deletingId === post._id ? '#4b5563' : '#dc2626',
+                      color: '#ffffff',
                       border: 'none',
-                      borderRadius: '4px',
-                      padding: '0.4rem 0.8rem',
+                      borderRadius: '6px',
+                      padding: '0.45rem 0.9rem',
                       cursor: deletingId === post._id ? 'not-allowed' : 'pointer',
-                      fontSize: '0.85rem'
+                      fontSize: '0.85rem',
+                      fontWeight: '600'
                     }}
                   >
                     {deletingId === post._id ? 'Deleting...' : 'Delete'}
                   </button>
                 </div>
 
-                <p style={{ margin: '0.5rem 0 1rem 0', lineHeight: '1.5', color: '#333' }}>{post.content}</p>
+                {/* Cloudinary Image Display */}
+                {post.imageUrl && (
+                  <div style={{ margin: '1rem 0' }}>
+                    <img
+                      src={post.imageUrl}
+                      alt={post.title}
+                      style={{
+                        width: '100%',
+                        maxHeight: '420px',
+                        objectFit: 'cover',
+                        borderRadius: '8px',
+                        border: '1px solid #333'
+                      }}
+                    />
+                  </div>
+                )}
 
-                <div style={{ fontSize: '0.85rem', color: '#757575', display: 'flex', gap: '1rem' }}>
-                  {post.author && <span>By: {post.author.name}</span>}
-                  <time>{new Date(post.createdAt).toLocaleDateString()}</time>
+                <p style={{ margin: '0.75rem 0 1.25rem 0', lineHeight: '1.6', color: '#d1d5db', fontSize: '1rem', whiteSpace: 'pre-wrap' }}>
+                  {post.content}
+                </p>
+
+                <div style={{ fontSize: '0.85rem', color: '#9ca3af', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #2e2e2e', paddingTop: '0.75rem' }}>
+                  <span>{post.author ? `By: ${post.author.name}` : 'By: Anonymous'}</span>
+                  <time>{new Date(post.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</time>
                 </div>
               </article>
             ))}

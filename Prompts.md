@@ -88,3 +88,52 @@ Integrate the Sprint 8 React (Vite) frontend with the Sprint 10 Node/Express/Mon
 
 ### Debugging
 Verified that `cors` middleware is placed before all route declarations in `server.js` so preflight and standard requests receive the appropriate headers.
+
+
+# Sprint 11 — Phase 2
+## Full CRUD UI Pipeline
+
+### Objective
+Implement interactive post creation and post deletion pipelines in the React frontend, updating UI state without browser reloads and handling asynchronous submitting/deleting states and error handling.
+
+### POST Integration & Form Implementation
+- Created controlled input form in `src/App.jsx` for `title` and `content`.
+- Implemented client-side validation to reject empty submissions.
+- Added `createPost()` in `src/services/api.js` targeting `POST http://localhost:5000/posts`.
+- Displayed `isSubmitting` loading state (`"Creating..."`) and disabled form controls during submission.
+- On success, dynamically prepends the created document to the `posts` state array and resets form fields.
+
+### Delete Integration & Safety
+- Added `deletePost()` in `src/services/api.js` targeting `DELETE http://localhost:5000/posts/:id`.
+- Integrated `window.confirm()` verification before executing destructive operations.
+- Handled per-item `deletingId` loading indicator (`"Deleting..."`).
+- On successful deletion, filtered the removed post from `posts` state without full page reloads.
+
+### Error Handling & Edge Cases
+- Handled server errors gracefully with dedicated `formError` and `deleteError` state variables.
+- Deleting the final post automatically transitions the UI into the `"No posts available."` empty state.
+
+### Testing & Verification
+- Tested creating valid posts: document persisted in MongoDB Atlas and rendered immediately.
+- Tested submitting empty forms: validated on client without unnecessary network requests.
+- Tested deleting posts: confirmed in prompt, document removed from MongoDB Atlas, and item removed from UI.
+- Tested deleting all posts: empty state rendered correctly.
+- Verified Network tab: `POST /posts` returns `201` and `DELETE /posts/:id` returns `200`. Zero console errors.
+
+# Sprint 11 — Phase 3C: Frontend Image Upload Integration
+
+## Objective
+Integrate optional image file uploads into the React post creation form using `FormData`, allowing users to select an image file that is streamed through the Express backend to Cloudinary, with the resulting `imageUrl` rendered in the post list without requiring full page reloads.
+
+## Architecture & Implementation
+- **API Service**: Updated `createPost(formData)` in `src/services/api.js` to accept `FormData` without setting manual `Content-Type` headers, enabling the browser to construct standard multipart boundaries.
+- **Form State**: Added `image` state and file input (`accept="image/*"`) with client-side image type and 5 MB size validation.
+- **Payload Construction**: Appends `title`, `content`, and optionally `image` (under field name `image`) to a `FormData` object.
+- **Post Card Image Display**: Conditionally renders `<img src={post.imageUrl} />` with responsive styling for posts that have a valid Cloudinary URL.
+- **Form Reset**: Clears `title`, `content`, `image` state, and the file input DOM ref upon successful upload.
+
+## Testing & Verification
+- Tested creating post without image: saved with `imageUrl: null` and rendered title/content cleanly.
+- Tested creating post with image: uploaded via backend to Cloudinary, returned `imageUrl`, and immediately displayed the image banner in the post card.
+- Inspected Network tab: `POST /posts` sent `multipart/form-data` payload returning `201 Created`.
+- Verified delete action and empty states remain fully operational without console errors.
