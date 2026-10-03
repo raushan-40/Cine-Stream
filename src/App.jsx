@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getPosts, createPost, deletePost } from './services/api';
+import { socket } from './services/socket';
 
 function App() {
   // Posts list state
@@ -18,10 +19,48 @@ function App() {
   const [deletingId, setDeletingId] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
 
+  // Real-Time Chat state
+  const [messages, setMessages] = useState([]);
+  const [messageInput, setMessageInput] = useState('');
+
   // Ref to reset the file input element
   const fileInputRef = useRef(null);
 
-  // 1. Initial data fetch
+  // 1. Initialize Persistent WebSocket Connection & Message Listener
+  useEffect(() => {
+    socket.connect();
+
+    const handleConnect = () => {
+      console.log(`Socket connected: ${socket.id}`);
+    };
+
+    const handleDisconnect = () => {
+      console.log('Socket disconnected');
+    };
+
+    const handleConnectError = (err) => {
+      console.error('Socket connection error:', err.message);
+    };
+
+    const handleChatMessage = (incomingMessage) => {
+      setMessages((prevMessages) => [...prevMessages, incomingMessage]);
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect_error', handleConnectError);
+    socket.on('chat:message', handleChatMessage);
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
+      socket.off('chat:message', handleChatMessage);
+      socket.disconnect();
+    };
+  }, []);
+
+  // 2. Initial REST API data fetch for posts
   useEffect(() => {
     let isMounted = true;
 
@@ -51,7 +90,20 @@ function App() {
     };
   }, []);
 
-  // 2. Handle image file selection with validation
+  // 3. Handle sending real-time chat message
+  const handleSendMessage = (e) => {
+    e.preventDefault();
+    if (!messageInput.trim()) return;
+
+    // Emit event to Socket.io server
+    socket.emit('chat:message', {
+      text: messageInput.trim()
+    });
+
+    setMessageInput('');
+  };
+
+  // 4. Handle image file selection with validation
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) {
@@ -66,7 +118,7 @@ function App() {
       return;
     }
 
-    const maxSize = 5 * 1024 * 1024; // 5MB limit
+    const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
       setFormError('Image size must be less than 5 MB.');
       setImage(null);
@@ -78,7 +130,7 @@ function App() {
     setImage(file);
   };
 
-  // 3. Handle post creation
+  // 5. Handle post creation via FormData
   const handleCreatePost = async (e) => {
     e.preventDefault();
 
@@ -100,11 +152,8 @@ function App() {
       }
 
       const newPost = await createPost(formData);
-
-      // Prepend to posts list
       setPosts((prevPosts) => [newPost, ...prevPosts]);
 
-      // Reset form fields
       setTitle('');
       setContent('');
       setImage(null);
@@ -118,7 +167,7 @@ function App() {
     }
   };
 
-  // 4. Handle post deletion
+  // 6. Handle post deletion
   const handleDeletePost = async (id) => {
     const confirmed = window.confirm('Are you sure you want to delete this post?');
     if (!confirmed) return;
@@ -128,7 +177,6 @@ function App() {
       setDeleteError(null);
 
       await deletePost(id);
-
       setPosts((prevPosts) => prevPosts.filter((post) => post._id !== id));
     } catch (err) {
       setDeleteError(`Failed to delete post: ${err.message || 'Please try again.'}`);
@@ -139,13 +187,97 @@ function App() {
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '2.5rem 1.5rem', fontFamily: 'system-ui, -apple-system, sans-serif', color: '#f3f4f6' }}>
-      
       {/* HEADER */}
       <header style={{ marginBottom: '2.5rem', borderBottom: '1px solid #333', paddingBottom: '1.25rem' }}>
         <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: '700', color: '#ffffff', letterSpacing: '-0.5px' }}>
-          The Data Hub <span style={{ fontSize: '1.2rem', color: '#60a5fa', fontWeight: '400' }}>— Fullstack Blog</span>
+          The Data Hub <span style={{ fontSize: '1.2rem', color: '#60a5fa', fontWeight: '400' }}>— Fullstack Blog & Real-Time</span>
         </h1>
       </header>
+
+      {/* REAL-TIME CHAT SECTION */}
+      <section style={{
+        backgroundColor: '#1e1e1e',
+        border: '1px solid #2e2e2e',
+        padding: '1.75rem',
+        borderRadius: '12px',
+        marginBottom: '3rem',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+      }}>
+        <h2 style={{ margin: '0 0 1rem 0', fontSize: '1.3rem', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>💬</span> Live Community Chat
+        </h2>
+
+        {/* Message List */}
+        <div style={{
+          backgroundColor: '#121212',
+          border: '1px solid #2e2e2e',
+          borderRadius: '8px',
+          padding: '1rem',
+          minHeight: '130px',
+          maxHeight: '220px',
+          overflowY: 'auto',
+          marginBottom: '1rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.6rem'
+        }}>
+          {messages.length === 0 ? (
+            <p style={{ color: '#6b7280', fontStyle: 'italic', margin: 'auto' }}>No messages yet. Send a message below!</p>
+          ) : (
+            messages.map((msg) => (
+              <div
+                key={msg.id}
+                style={{
+                  backgroundColor: '#262626',
+                  padding: '0.5rem 0.85rem',
+                  borderRadius: '6px',
+                  color: '#f3f4f6',
+                  fontSize: '0.95rem',
+                  borderLeft: '3px solid #3b82f6',
+                  wordBreak: 'break-word'
+                }}
+              >
+                {msg.text}
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Message Input Form */}
+        <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '0.75rem' }}>
+          <input
+            type="text"
+            value={messageInput}
+            onChange={(e) => setMessageInput(e.target.value)}
+            placeholder="Type a real-time message..."
+            style={{
+              flex: 1,
+              padding: '0.75rem',
+              borderRadius: '6px',
+              border: '1px solid #3e3e3e',
+              backgroundColor: '#2a2a2a',
+              color: '#ffffff',
+              fontSize: '0.95rem',
+              outline: 'none'
+            }}
+          />
+          <button
+            type="submit"
+            style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: '#3b82f6',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '0.95rem'
+            }}
+          >
+            Send
+          </button>
+        </form>
+      </section>
 
       {/* CREATE POST FORM */}
       <section style={{
@@ -248,8 +380,7 @@ function App() {
               borderRadius: '6px',
               cursor: isSubmitting ? 'not-allowed' : 'pointer',
               fontWeight: '600',
-              fontSize: '0.95rem',
-              transition: 'background-color 0.2s ease'
+              fontSize: '0.95rem'
             }}
           >
             {isSubmitting ? 'Uploading & Creating...' : 'Create Post'}
@@ -310,7 +441,6 @@ function App() {
                   </button>
                 </div>
 
-                {/* Cloudinary Image Display */}
                 {post.imageUrl && (
                   <div style={{ margin: '1rem 0' }}>
                     <img

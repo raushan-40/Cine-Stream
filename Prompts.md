@@ -137,3 +137,44 @@ Integrate optional image file uploads into the React post creation form using `F
 - Tested creating post with image: uploaded via backend to Cloudinary, returned `imageUrl`, and immediately displayed the image banner in the post card.
 - Inspected Network tab: `POST /posts` sent `multipart/form-data` payload returning `201 Created`.
 - Verified delete action and empty states remain fully operational without console errors.
+
+# Sprint 12 — Track B — Phase 1B: WebSocket Initialization & Base MVP: React Client Connection
+
+## Prompt
+Sprint 12 — Track B — Phase 1B
+WebSocket Initialization & Base MVP: React Client Connection
+[Attached full system prompt specification]
+
+## Objective
+Integrate `socket.io-client` into the React application, establish a persistent WebSocket connection to the backend using `VITE_API_URL`, ensure lifecycle-aware connection and cleanup in `useEffect`, and preserve all existing REST API and Cloudinary features.
+
+## Architecture & Implementation
+- **Dependencies**: Added `socket.io-client`.
+- **Socket Client Module**: Created `src/services/socket.js` exporting a configured `socket` instance with `autoConnect: false` and `withCredentials: true`.
+- **React Connection Lifecycle**: In `src/App.jsx`, added a dedicated `useEffect` executing `socket.connect()`, listening to `connect`, `disconnect`, and `connect_error` events.
+- **Cleanup Strategy**: On component unmount / StrictMode cleanup, removes all attached event listeners (`socket.off(...)`) and invokes `socket.disconnect()`, eliminating duplicate connection accumulation.
+
+## Testing & Verification
+- Started backend (`the-data-hub`) on port 5000 and frontend (`Cine-Stream`) on port 5173.
+- Checked Browser Console: Confirmed `Socket connected: <socket_id>`.
+- Checked Backend Terminal: Confirmed `Socket client connected: <socket_id>`.
+- Refreshed browser multiple times: Confirmed disconnect and reconnect cycles execute cleanly without hanging sockets.
+- Verified REST endpoints (`GET /posts`, Create Post with image, Delete Post) continue to work normally.
+
+
+
+# Sprint 12 — Track B — Phase 1C: Bidirectional Broadcast: Real-Time Messaging MVP
+
+## Prompt
+Sprint 12 — Track B — Phase 1C
+Bidirectional Broadcast: Real-Time Messaging MVP
+[Attached full system prompt specification]
+
+## Objective
+Implement a real-time messaging UI in React that emits `chat:message` events over Socket.io and receives broadcasted messages in real time without page reload.
+
+## Implementation Details
+- Added `messages` and `messageInput` state in `src/App.jsx`.
+- Attached `socket.on('chat:message', handleChatMessage)` with proper `socket.off()` cleanup inside `useEffect`.
+- Implemented `handleSendMessage` that checks for empty text, emits payload, and clears input.
+- Rendered live community chat container above the blog posts list.
