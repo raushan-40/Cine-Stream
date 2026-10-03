@@ -2,7 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getPosts, createPost, deletePost } from './services/api';
 import { socket } from './services/socket';
 
+const CHANNELS = ['General', 'Tech Support'];
+
 function App() {
+  // Session Identity State
+  const [username, setUsername] = useState('');
+
+  // Channel Selection State
+  const [currentChannel, setCurrentChannel] = useState('General');
+
   // Posts list state
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,48 +27,93 @@ function App() {
   const [deletingId, setDeletingId] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
 
-  // Real-Time Chat state
+  // Real-Time Chat & Typing state
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
+  const [typingUsers, setTypingUsers] = useState({});
 
-  // Ref to reset the file input element
+  // Refs
   const fileInputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+  const currentChannelRef = useRef(currentChannel);
 
-  // 1. Initialize Persistent WebSocket Connection & Message Listener
+  // Keep channel ref synced for event callbacks
   useEffect(() => {
-    socket.connect();
+    currentChannelRef.current = currentChannel;
+  }, [currentChannel]);
+
+  // 1. Prompt user for unique session username on mount
+  useEffect(() => {
+    let name = '';
+    while (!name || !name.trim()) {
+      name = window.prompt('Enter your username for the real-time chat:') || '';
+      if (!name.trim()) {
+        alert('Username cannot be empty. Please enter a valid name.');
+      }
+    }
+    setUsername(name.trim());
+  }, []);
+
+  // 2. Join selected channel room on Socket.io connection & channel switch
+  useEffect(() => {
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    // Join room on backend
+    socket.emit('channel:join', currentChannel);
+
+    // Clear typing indicator when switching channels
+    setTypingUsers({});
 
     const handleConnect = () => {
-      console.log(`Socket connected: ${socket.id}`);
-    };
-
-    const handleDisconnect = () => {
-      console.log('Socket disconnected');
-    };
-
-    const handleConnectError = (err) => {
-      console.error('Socket connection error:', err.message);
-    };
-
-    const handleChatMessage = (incomingMessage) => {
-      setMessages((prevMessages) => [...prevMessages, incomingMessage]);
+      console.log(`✅ Socket connected: ${socket.id}`);
+      socket.emit('channel:join', currentChannelRef.current);
     };
 
     socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-    socket.on('connect_error', handleConnectError);
-    socket.on('chat:message', handleChatMessage);
 
     return () => {
       socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-      socket.off('connect_error', handleConnectError);
+    };
+  }, [currentChannel]);
+
+  // 3. Persistent WebSocket listeners for channel-scoped messages & typing
+  useEffect(() => {
+    const handleChatMessage = (incomingMessage) => {
+      if (incomingMessage.channel === currentChannelRef.current) {
+        setMessages((prevMessages) => [...prevMessages, incomingMessage]);
+      }
+    };
+
+    const handleUserTyping = ({ channel, user, isTyping }) => {
+      if (channel !== currentChannelRef.current || !user) return;
+
+      setTypingUsers((prev) => {
+        const updated = { ...prev };
+        if (isTyping) {
+          updated[user] = true;
+        } else {
+          delete updated[user];
+        }
+        return updated;
+      });
+    };
+
+    socket.on('chat:message', handleChatMessage);
+    socket.on('user:typing', handleUserTyping);
+
+    return () => {
       socket.off('chat:message', handleChatMessage);
-      socket.disconnect();
+      socket.off('user:typing', handleUserTyping);
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
     };
   }, []);
 
-  // 2. Initial REST API data fetch for posts
+  // 4. Initial REST API data fetch for posts
   useEffect(() => {
     let isMounted = true;
 
@@ -90,20 +143,91 @@ function App() {
     };
   }, []);
 
-  // 3. Handle sending real-time chat message
+  // 5. Handle channel switch
+  const handleChannelChange = (channelName) => {
+    if (channelName === currentChannel) return;
+
+    // Reset typing state on current channel before switching
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    socket.emit('user:typing', {
+      channel: currentChannel,
+      user: username || 'Anonymous',
+      isTyping: false
+    });
+
+    setCurrentChannel(channelName);
+  };
+
+  // 6. Handle input changes and emit room-scoped typing events
+  const handleMessageInputChange = (e) => {
+    const val = e.target.value;
+    setMessageInput(val);
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    if (val.trim()) {
+      socket.emit('user:typing', {
+        channel: currentChannel,
+        user: username || 'Anonymous',
+        isTyping: true
+      });
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit('user:typing', {
+          channel: currentChannel,
+          user: username || 'Anonymous',
+          isTyping: false
+        });
+      }, 1500);
+    } else {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      socket.emit('user:typing', {
+        channel: currentChannel,
+        user: username || 'Anonymous',
+        isTyping: false
+      });
+    }
+  };
+
+  // 7. Handle sending real-time chat message to current channel
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!messageInput.trim()) return;
 
-    // Emit event to Socket.io server
-    socket.emit('chat:message', {
-      text: messageInput.trim()
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    socket.emit('user:typing', {
+      channel: currentChannel,
+      user: username || 'Anonymous',
+      isTyping: false
     });
 
+    const payload = {
+      channel: currentChannel,
+      user: username || 'Anonymous',
+      text: messageInput.trim()
+    };
+
+    socket.emit('chat:message', payload);
     setMessageInput('');
   };
 
-  // 4. Handle image file selection with validation
+  // 8. Handle image file selection with validation
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) {
@@ -130,7 +254,7 @@ function App() {
     setImage(file);
   };
 
-  // 5. Handle post creation via FormData
+  // 9. Handle post creation via FormData
   const handleCreatePost = async (e) => {
     e.preventDefault();
 
@@ -167,7 +291,7 @@ function App() {
     }
   };
 
-  // 6. Handle post deletion
+  // 10. Handle post deletion
   const handleDeletePost = async (id) => {
     const confirmed = window.confirm('Are you sure you want to delete this post?');
     if (!confirmed) return;
@@ -185,16 +309,19 @@ function App() {
     }
   };
 
+  const typingNames = Object.keys(typingUsers);
+  const channelMessages = messages.filter((m) => m.channel === currentChannel);
+
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '2.5rem 1.5rem', fontFamily: 'system-ui, -apple-system, sans-serif', color: '#f3f4f6' }}>
       {/* HEADER */}
       <header style={{ marginBottom: '2.5rem', borderBottom: '1px solid #333', paddingBottom: '1.25rem' }}>
         <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: '700', color: '#ffffff', letterSpacing: '-0.5px' }}>
-          The Data Hub <span style={{ fontSize: '1.2rem', color: '#60a5fa', fontWeight: '400' }}>— Fullstack Blog & Real-Time</span>
+          The Data Hub <span style={{ fontSize: '1.2rem', color: '#60a5fa', fontWeight: '400' }}>— Fullstack Blog & Channels</span>
         </h1>
       </header>
 
-      {/* REAL-TIME CHAT SECTION */}
+      {/* REAL-TIME CHAT & CHANNELS SECTION */}
       <section style={{
         backgroundColor: '#1e1e1e',
         border: '1px solid #2e2e2e',
@@ -203,28 +330,67 @@ function App() {
         marginBottom: '3rem',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
       }}>
-        <h2 style={{ margin: '0 0 1rem 0', fontSize: '1.3rem', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span>💬</span> Live Community Chat
-        </h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <h2 style={{ margin: 0, fontSize: '1.3rem', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>💬</span> Live Community Chat
+          </h2>
+          {username && (
+            <span style={{ fontSize: '0.85rem', color: '#9ca3af', backgroundColor: '#262626', padding: '0.3rem 0.6rem', borderRadius: '4px', border: '1px solid #333' }}>
+              Chatting as: <strong style={{ color: '#60a5fa' }}>{username}</strong>
+            </span>
+          )}
+        </div>
 
-        {/* Message List */}
+        {/* Channel Selector Tabs */}
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid #2e2e2e', paddingBottom: '0.75rem' }}>
+          {CHANNELS.map((channel) => {
+            const isActive = currentChannel === channel;
+            return (
+              <button
+                key={channel}
+                type="button"
+                onClick={() => handleChannelChange(channel)}
+                style={{
+                  padding: '0.45rem 1rem',
+                  borderRadius: '6px',
+                  border: isActive ? '1px solid #3b82f6' : '1px solid #333',
+                  backgroundColor: isActive ? '#1d4ed8' : '#262626',
+                  color: isActive ? '#ffffff' : '#9ca3af',
+                  cursor: 'pointer',
+                  fontWeight: isActive ? '600' : '400',
+                  fontSize: '0.9rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <span>#</span> {channel}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Message List for Current Channel */}
         <div style={{
           backgroundColor: '#121212',
           border: '1px solid #2e2e2e',
           borderRadius: '8px',
           padding: '1rem',
-          minHeight: '130px',
-          maxHeight: '220px',
+          minHeight: '140px',
+          maxHeight: '240px',
           overflowY: 'auto',
-          marginBottom: '1rem',
+          marginBottom: '0.75rem',
           display: 'flex',
           flexDirection: 'column',
           gap: '0.6rem'
         }}>
-          {messages.length === 0 ? (
-            <p style={{ color: '#6b7280', fontStyle: 'italic', margin: 'auto' }}>No messages yet. Send a message below!</p>
+          {channelMessages.length === 0 ? (
+            <p style={{ color: '#6b7280', fontStyle: 'italic', margin: 'auto' }}>
+              No messages in #{currentChannel} yet. Be the first to post!
+            </p>
           ) : (
-            messages.map((msg) => (
+            channelMessages.map((msg) => (
               <div
                 key={msg.id}
                 style={{
@@ -237,9 +403,19 @@ function App() {
                   wordBreak: 'break-word'
                 }}
               >
-                {msg.text}
+                <strong style={{ color: '#60a5fa', marginRight: '0.4rem' }}>[{msg.user}]:</strong>
+                <span>{msg.text}</span>
               </div>
             ))
+          )}
+        </div>
+
+        {/* Real-time Room Typing Indicator */}
+        <div style={{ minHeight: '1.25rem', marginBottom: '0.5rem' }}>
+          {typingNames.length > 0 && (
+            <p style={{ margin: 0, fontSize: '0.85rem', color: '#93c5fd', fontStyle: 'italic' }}>
+              ✍️ [{typingNames.join(', ')}] {typingNames.length === 1 ? 'is' : 'are'} typing in #{currentChannel}...
+            </p>
           )}
         </div>
 
@@ -248,8 +424,8 @@ function App() {
           <input
             type="text"
             value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
-            placeholder="Type a real-time message..."
+            onChange={handleMessageInputChange}
+            placeholder={`Message #${currentChannel} as ${username || 'user'}...`}
             style={{
               flex: 1,
               padding: '0.75rem',

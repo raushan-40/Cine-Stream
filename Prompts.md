@@ -178,3 +178,51 @@ Implement a real-time messaging UI in React that emits `chat:message` events ove
 - Attached `socket.on('chat:message', handleChatMessage)` with proper `socket.off()` cleanup inside `useEffect`.
 - Implemented `handleSendMessage` that checks for empty text, emits payload, and clears input.
 - Rendered live community chat container above the blog posts list.
+
+
+# Sprint 12 — Track B — Phase 2A: Session Identification
+
+## Prompt
+Sprint 12 — Track B — Phase 2A
+Session Identification
+[Attached full system prompt specification]
+
+## Objective
+Prompt user for a unique session username on mount, enforce non-empty input, include identity in Socket.io `chat:message` payloads, and render `[Username]: Message` in real time.
+
+## Implementation Details
+- Added `window.prompt` workflow on mount storing non-empty name in `username` state.
+- Emitted `chat:message` with `{ user: username, text }`.
+- Rendered messages as `[msg.user]: msg.text` in the UI.
+
+# Sprint 12 — Track B — Phase 2B: Real-Time Event Handlers: Typing Indicator
+
+## Prompt
+Sprint 12 — Track B — Phase 2B
+Real-Time Event Handlers: Typing Indicator
+[Attached full system prompt specification]
+
+## Objective
+Implement debounced typing detection and real-time indicator display in React when other users type in the chat input.
+
+## Implementation Details
+- Emits `user:typing` (`isTyping: true`) on input changes with a 1.5s debounce timeout to automatically emit `isTyping: false`.
+- Listens to `socket.on('user:typing')`, managing active typing users in `typingUsers` state.
+- Rendered `[User] is typing...` indicator in the live chat section.
+- Added comprehensive timer and listener cleanup on unmount.
+
+# Sprint 12 — Track B — Phase 3: Channel Segregation & Routing Logic
+
+## Prompt
+Sprint 12 — Track B — Phase 3
+Channel Segregation & Routing Logic
+[Attached full system prompt specification]
+
+## Objective
+Implement a channel selector UI in React with `General` and `Tech Support` rooms, emitting `channel:join` on channel switch and routing message and typing payloads strictly within the active channel.
+
+## Implementation Details
+- Added `currentChannel` state and interactive channel selector tabs (`# General`, `# Tech Support`).
+- Emits `channel:join` upon connection and channel selection.
+- Attaches `channel` property to `chat:message` and `user:typing` payloads.
+- Filters messages and typing indicators so only events matching the active channel appear in the DOM.
